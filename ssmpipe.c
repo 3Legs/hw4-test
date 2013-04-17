@@ -7,6 +7,8 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <signal.h>
+
 
 /* define macros */
 #define __NR_ssmem_attach 	333
@@ -25,13 +27,34 @@
 int get_num(int i);
 int parse_int(char *name);
 
+/* define structs */
+struct slot_sync {
+	/* w_flag is a 1-7 int, denoting the current slot */
+	sig_atomic_t w_flag;
+	/* w_flag is a 0/1 int, denoting locked/unlocked by the writer */
+	sig_atomic_t writing;
+
+	/* r_flag is a int array, denoting whether all readers has finished reading a slot
+	 * Each element is a 0-8 int since there are up to 8 readers
+	 */
+	sig_atomic_t r_flag[8];
+	int garbage[246];
+};
+
+struct slot_t {
+	char line[1024];
+};
+
+
 int main(int argc, char **argv)
 {
 	char *name = NULL;
 	int ssmem_id = -1;
 	int type = -1;
-	int result = -1;
+	void *result = NULL;
 	int flag = 0;
+	sig_atomic_t cur_slot = 0;
+	int name_len = 0;
 
 	if (argc != 4) {
 		fprintf(stderr, "ssmpipe must take 4 parameters!\n");
@@ -54,18 +77,120 @@ int main(int argc, char **argv)
 
 	if (strcmp(argv[3], "writer") == 0) {
 		type = WRITER;
+		flag |= (SSMEM_CREATE | SSMEM_WRITE);
 	} else if (strcmp(argv[3], "reader") == 0) {
 		type = READER;
+		flag |= SSMEM_EXEC;
 	} else {
 		fprintf(stderr, "Invalid type!\n");
 		return -1;
 	}
 
-	flag |= (SSMEM_CREATE | SSMEM_WRITE);
+	/*
+	result = (void *)  syscall(__NR_ssmem_attach, ssmem_id, flag, 8*KB);
+	fprintf(stdout, "ADDR: %x", result);
+	if ((int) result < 0 && (int) result > -138) {
+		printf("Error occured calling ssmem_attach!\n");
+		return -1;
+	}
+	*/
 
-	result = syscall(__NR_ssmem_attach, ssmem_id, flag, 8*KB);
-	fprintf(stdout, "ADDR: %x\n", result);
+	result = malloc(8*KB);
+	result = memset(result, 0, 8*KB);
 
+	struct slot_sync *slot_0 = (struct slot_sync *) result;
+	struct slot_t *slot_1 = (struct slot_t *) (slot_0 + 1);
+	struct slot_t *slot = slot_1;
+
+	printf("sizeof slot_sync: %d\n", sizeof(struct slot_sync));
+	printf("sizeof slot_t: %d\n", sizeof(struct slot_t));
+	printf("slot_0: %p\n", slot_0);
+	printf("slot_1: %p\n", slot_1);
+
+	if (type == READER) {		
+
+		while (1) {
+			if (slot_0->writing == 0) {
+				cur_slot = slot_0->w_flag;
+				sleep(1);
+			}
+			else 
+			if (slot_0->writing == 1){
+				if(cur_slot == 0) {
+					if (cur_slot < 0 || cur_slot > 7) {
+					fprintf(stderr, "Slot out of bound!\n");
+					return -1;
+					}
+					if (cur_slot > 6) {
+						cur_slot = 1;
+						printf("Back to 1: current slot is %d\n", cur_slot);
+					}
+					else {
+						++cur_slot;
+						printf("current slot is %d\n", cur_slot);
+					}
+					slot = slot_1 + cur_slot - 1;
+					continue;
+				}
+				/* Lock the slot: only readable */
+				++ slot_0->r_flag[cur_slot];
+
+				slot = slot_1 + cur_slot - 1;
+
+				/* Start reading */
+				printf("%s: %s\n", name, slot->line);
+
+				/* Finished reading */
+				-- slot_0->r_flag[cur_slot];
+				return 0;
+			}
+		}			
+	}
+
+	
+	if (type == WRITER) {	
+		/* Assume name is shorter than 1024-6 */
+		name = strcat(name, " says ");
+		name_len = strlen(name);
+		while(1) {
+			if (cur_slot < 0 || cur_slot > 7) {
+				fprintf(stderr, "Slot out of bound!\n");
+				return -1;
+			}
+			if (cur_slot > 6) {
+				cur_slot = 1;
+				printf("Back to 1: current slot is %d\n", cur_slot);
+			}
+			else {
+				++cur_slot;
+				printf("current slot is %d\n", cur_slot);
+			}
+			slot = slot_1 + cur_slot - 1;			
+			
+			/* Wait for all readers reading the certain slot*/
+			while(1) {
+				if (slot_0->r_flag[cur_slot] > 0) {
+					printf("There are %d is reading\n", slot_0->r_flag[cur_slot]);
+					sleep(1);
+				}
+				else {
+					/* Lock the slot and set the w-flag */
+					slot_0->writing = 0;
+					slot_0->w_flag = cur_slot;
+					break;
+				}
+			}
+
+			/* Start writing */
+			memset(slot->line,0,KB);
+			memcpy(slot->line, name, name_len);
+			fgets((slot->line) + name_len, KB - name_len - 1, stdin);
+
+			/* Finished writing and unlock the slot */	
+			slot_0->writing = 1;
+			printf("In slot[%d] We wrote: %s\n", cur_slot, slot->line);
+		}
+	}
 	return 0;
 }
 
