@@ -111,32 +111,37 @@ int main(int argc, char **argv)
 
 		while (1) {
 			if (slot_0->writing == 0) {
-				cur_slot = slot_0->w_flag;
-				sleep(1);
-			}
-			else 
-			if (slot_0->writing == 1){
-				if(cur_slot == 0) {
-					if (cur_slot < 0 || cur_slot > 7) {
-					fprintf(stderr, "Slot out of bound!\n");
-					return -1;
-					}
-					if (cur_slot > 6) {
-						cur_slot = 1;
-						printf("Back to 1: current slot is %d\n", cur_slot);
-					}
-					else {
-						++cur_slot;
-						printf("current slot is %d\n", cur_slot);
-					}
+				if (cur_slot == 0) {
+					cur_slot = slot_0->w_flag;
 					slot = slot_1 + cur_slot - 1;
+					sleep(1);
 					continue;
 				}
+				/* Writer is writing on another slot */
+				if (cur_slot != slot_0->w_flag) {
+					/* Lock the slot: only readable */
+					++ slot_0->r_flag[cur_slot];
+					
+					/* Start reading */
+					printf("%s: %s\n", name, slot->line);
+
+					/* Finished reading */
+					-- slot_0->r_flag[cur_slot];
+					return 0;
+				}				
+			}
+			else {
+				if(cur_slot == 0) {
+					cur_slot = slot_0->w_flag;
+					slot = slot_1 + cur_slot - 1;
+					sleep(1);
+					continue;
+				}
+				/* Writer is not writing */
 				/* Lock the slot: only readable */
 				++ slot_0->r_flag[cur_slot];
-
 				slot = slot_1 + cur_slot - 1;
-
+				
 				/* Start reading */
 				printf("%s: %s\n", name, slot->line);
 
@@ -165,9 +170,13 @@ int main(int argc, char **argv)
 				++cur_slot;
 				printf("current slot is %d\n", cur_slot);
 			}
-			slot = slot_1 + cur_slot - 1;			
-			
-			/* Wait for all readers reading the certain slot*/
+			slot = slot_1 + cur_slot - 1;	
+			slot_0->w_flag = cur_slot;
+
+			/* Finished writing in the previous loop and unlock the previous slot */	
+			slot_0->writing = 1;
+
+			/* Wait for all readers finish reading the certain slot*/
 			while(1) {
 				if (slot_0->r_flag[cur_slot] > 0) {
 					printf("There are %d is reading\n", slot_0->r_flag[cur_slot]);
@@ -176,7 +185,6 @@ int main(int argc, char **argv)
 				else {
 					/* Lock the slot and set the w-flag */
 					slot_0->writing = 0;
-					slot_0->w_flag = cur_slot;
 					break;
 				}
 			}
@@ -184,10 +192,7 @@ int main(int argc, char **argv)
 			/* Start writing */
 			memset(slot->line,0,KB);
 			memcpy(slot->line, name, name_len);
-			fgets((slot->line) + name_len, KB - name_len - 1, stdin);
-
-			/* Finished writing and unlock the slot */	
-			slot_0->writing = 1;
+			fgets((slot->line) + name_len, KB - name_len - 1, stdin);			
 			printf("In slot[%d] We wrote: %s\n", cur_slot, slot->line);
 		}
 	}
