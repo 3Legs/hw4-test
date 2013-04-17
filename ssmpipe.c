@@ -13,13 +13,13 @@
 /* define macros */
 #define __NR_ssmem_attach 	333
 #define __NR_ssmem_detach 	334
-#define MAX_SSMEM 					1024
-#define WRITER 							0
-#define READER 							1
-#define SSMEM_CREATE  			0x1
-#define SSMEM_WRITE   			0x2
-#define SSMEM_EXEC    	 		0x4
-#define KB									1024
+#define MAX_SSMEM 			1024
+#define WRITER 				0
+#define READER 				1
+#define SSMEM_CREATE  		0x1
+#define SSMEM_WRITE   		0x2
+#define SSMEM_EXEC     		0x4
+#define KB					1024
 
 /* define variables */
 
@@ -86,17 +86,17 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	/*
-	result = (void *)  syscall(__NR_ssmem_attach, ssmem_id, flag, 8*KB);
-	fprintf(stdout, "ADDR: %x", result);
+	
+	result = (void *) syscall(__NR_ssmem_attach, ssmem_id, flag, 8*KB);
+	fprintf(stdout, "ADDR: %x\n", result);
 	if ((int) result < 0 && (int) result > -138) {
 		printf("Error occured calling ssmem_attach!\n");
 		return -1;
 	}
-	*/
+	
 
-	result = malloc(8*KB);
-	result = memset(result, 0, 8*KB);
+	//result = malloc(8*KB);
+	//result = memset(result, 0, 8*KB);
 
 	struct slot_sync *slot_0 = (struct slot_sync *) result;
 	struct slot_t *slot_1 = (struct slot_t *) (slot_0 + 1);
@@ -141,7 +141,7 @@ int main(int argc, char **argv)
 				/* Lock the slot: only readable */
 				++ slot_0->r_flag[cur_slot];
 				slot = slot_1 + cur_slot - 1;
-				
+
 				/* Start reading */
 				printf("%s: %s\n", name, slot->line);
 
