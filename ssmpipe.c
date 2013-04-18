@@ -58,6 +58,7 @@ int main(int argc, char **argv)
 	int flag = 0;
 	sig_atomic_t cur_slot = 0;
 	int name_len = 0;
+	int tag = 0;
 
 	/* install termination (Ctrl-C and kill) handler */
 	signal (SIGINT, tmnt_handler);
@@ -128,7 +129,7 @@ int main(int argc, char **argv)
 					cur_slot = slot_0->w_flag;
 					slot = slot_1 + cur_slot - 1;
 					//printf("begin sleep to wait, and the new slot is %d\n", cur_slot);
-					sleep(3);
+					//sleep(3);
 					continue;
 				}
 			if (cur_slot != slot_0->w_flag || slot_0->writing == 1) {	
@@ -137,8 +138,8 @@ int main(int argc, char **argv)
 				++ slot_0->r_flag[cur_slot];
 				
 				/* Start reading */
-				printf("%s: %s\n", name, slot->line);
-				//sleep(20);
+				printf("%s: %s", name, slot->line);
+				sleep(10);
 
 				/* Finished reading */
 				-- slot_0->r_flag[cur_slot];
@@ -170,27 +171,25 @@ int main(int argc, char **argv)
 
 			/* Finished writing in the previous loop and unlock the previous slot */	
 			slot_0->writing = 1;
-			//printf("writing is good\n");
 			
 			/* Wait for all readers finish reading the certain slot*/
 			while(1) {
-				//printf("looping\n");
 				if (slot_0->r_flag[cur_slot] > 0) {
-					//printf("don't be here\n");
-					printf("%d readers is/are still reading slot %d\n", slot_0->r_flag[cur_slot], cur_slot);
+					if (tag ==0) {
+						printf("%d readers is/are still reading this slot\n", slot_0->r_flag[cur_slot]);
+						tag = 1;
+					}
 					sleep(1);
 				}
 				else {
 					/* Lock the slot and set the w-flag */
 					slot_0->writing = 0;
+					tag = 0;
 					break;
 				}
 			}
 
 			/* Start writing */
-			printf("start writing\n");
-			//char *test = "write sth";
-			//*(slot->line) = 'a'; 
 			memset(slot->line,0,KB);
 			memcpy(slot->line, name, name_len);
 			slot->line;
@@ -229,15 +228,14 @@ int parse_int(char *name)
 
 void  tmnt_handler(int sig)
 {
-	char  c;
-
+	fclose(stdin);
 	signal(sig, SIG_IGN);
 	if (type == WRITER)
-		printf("The writer %s has quited.\n", orig_name);
+		printf("\nThe writer %s has quited.\n", orig_name);
 	else if (type == READER)
-		printf("The reader %s has quited.\n", orig_name);
+		printf("\nThe reader %s has quited.\n", orig_name);
 	else
-		printf("%s has quited.\n", orig_name);
+		printf("\n%s has quited.\n", orig_name);
 
-	_exit(0);
+	exit(0);
 }
