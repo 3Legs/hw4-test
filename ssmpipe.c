@@ -139,7 +139,7 @@ int main(int argc, char **argv)
 				
 				/* Start reading */
 				printf("%s: %s", name, slot->line);
-				sleep(10);
+				//sleep(10);
 
 				/* Finished reading */
 				-- slot_0->r_flag[cur_slot];
@@ -231,11 +231,9 @@ void  tmnt_handler(int sig)
 	fclose(stdin);
 	signal(sig, SIG_IGN);
 	if (type == WRITER)
-		printf("\nThe writer %s has quited.\n", orig_name);
-	else if (type == READER)
-		printf("\nThe reader %s has quited.\n", orig_name);
+		printf("\nThe writer %s quits.\n", orig_name);
 	else
-		printf("\n%s has quited.\n", orig_name);
+		printf("\nThe reader %s quits.\n", orig_name);
 
 	exit(0);
 }
