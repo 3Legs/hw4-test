@@ -116,20 +116,11 @@ int main(int argc, char **argv)
 	struct slot_t *slot_1 = (struct slot_t *) (slot_0 + 1);
 	struct slot_t *slot = slot_1;
 
-/*
-	printf("sizeof slot_sync: %d\n", sizeof(struct slot_sync));
-	printf("sizeof slot_t: %d\n", sizeof(struct slot_t));
-	printf("slot_0: %p\n", slot_0);
-	printf("slot_1: %p\n", slot_1);
-*/
-
 	if (type == READER) {
 		while (1) {
 			if (cur_slot == 0) {
 					cur_slot = slot_0->w_flag;
 					slot = slot_1 + cur_slot - 1;
-					//printf("begin sleep to wait, and the new slot is %d\n", cur_slot);
-					//sleep(3);
 					continue;
 				}
 			if (cur_slot != slot_0->w_flag || slot_0->writing == 1) {	
@@ -138,7 +129,7 @@ int main(int argc, char **argv)
 				++ slot_0->r_flag[cur_slot];
 				
 				/* Start reading */
-				printf("%s: %s", name, slot->line);
+				printf("[slot %d] %s: %s\n", cur_slot, name, slot->line);
 				//sleep(10);
 
 				/* Finished reading */
@@ -175,7 +166,7 @@ int main(int argc, char **argv)
 			/* Wait for all readers finish reading the certain slot*/
 			while(1) {
 				if (slot_0->r_flag[cur_slot] > 0) {
-					if (tag ==0) {
+					if (tag == 0) {
 						printf("%d readers is/are still reading this slot\n", slot_0->r_flag[cur_slot]);
 						tag = 1;
 					}
@@ -190,10 +181,11 @@ int main(int argc, char **argv)
 			}
 
 			/* Start writing */
+			printf("[slot %d] ", cur_slot);
 			memset(slot->line,0,KB);
-			memcpy(slot->line, name, name_len);
-			slot->line;
-			fgets((slot->line) + name_len, KB - name_len - 1, stdin);			
+			memcpy(slot->line, name, name_len);			
+			fgets((slot->line) + name_len, KB - name_len - 1, stdin);	
+			printf("\n");		
 			//printf("In slot[%d] We wrote: %s\n", cur_slot, slot->line);
 		}
 	}
@@ -228,6 +220,7 @@ int parse_int(char *name)
 
 void  tmnt_handler(int sig)
 {
+	fflush(stdin);
 	fclose(stdin);
 	signal(sig, SIG_IGN);
 	if (type == WRITER)
